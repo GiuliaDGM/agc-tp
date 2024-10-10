@@ -76,6 +76,12 @@ def get_arguments(): # pragma: no cover
     return parser.parse_args()
 
 
+
+#################################################################
+############# Dé-duplication en séquence “complète” #############
+#################################################################
+
+
 def read_fasta(amplicon_file: Path, minseqlen: int) -> Iterator[str]:
     """Read a compressed fasta and extract all fasta sequences.
 
@@ -83,7 +89,21 @@ def read_fasta(amplicon_file: Path, minseqlen: int) -> Iterator[str]:
     :param minseqlen: (int) Minimum amplicon sequence length
     :return: A generator object that provides the Fasta sequences (str).
     """
-    pass
+    with gzip.open(amplicon_file, "rt") as f:
+        sequence = ""
+        for line in f:
+            if line.startswith(">"):
+                # Si une séquence a été lue et qu'elle est assez longue, on la retourne
+                if len(sequence) >= minseqlen:
+                    yield sequence
+                # Réinitialisation de la séquence pour la prochaine entrée
+                sequence = ""
+            else:
+                # Enlève les retours à la ligne et ajoute la ligne à la séquence courante
+                sequence += line.strip()
+        # Dernière séquence à renvoyer si elle est assez longue
+        if len(sequence) >= minseqlen:
+            yield sequence
 
 
 def dereplication_fulllength(amplicon_file: Path, minseqlen: int, mincount: int) -> Iterator[List]:
@@ -94,7 +114,14 @@ def dereplication_fulllength(amplicon_file: Path, minseqlen: int, mincount: int)
     :param mincount: (int) Minimum amplicon count
     :return: A generator object that provides a (list)[sequences, count] of sequence with a count >= mincount and a length >= minseqlen.
     """
-    pass
+    # Utilisation de Counter pour compter les occurrences des séquences
+    sequence_counts = Counter(read_fasta(amplicon_file, minseqlen))
+
+    # Filtrer les séquences ayant une occurrence >= mincount et trier par ordre décroissant
+    for sequence, count in sequence_counts.most_common():
+        if count >= mincount:
+            yield [sequence, count]
+
 
 def get_identity(alignment_list: List[str]) -> float:
     """Compute the identity rate between two sequences
