@@ -76,7 +76,6 @@ def get_arguments(): # pragma: no cover
     return parser.parse_args()
 
 
-
 #################################################################
 ############# Dé-duplication en séquence “complète” #############
 #################################################################
@@ -123,13 +122,20 @@ def dereplication_fulllength(amplicon_file: Path, minseqlen: int, mincount: int)
             yield [sequence, count]
 
 
+################################################
+############# Regroupement glouton #############
+################################################
+
+
 def get_identity(alignment_list: List[str]) -> float:
     """Compute the identity rate between two sequences
 
     :param alignment_list:  (list) A list of aligned sequences in the format ["SE-QUENCE1", "SE-QUENCE2"]
     :return: (float) The rate of identity between the two sequences.
     """
-    pass
+    sequence1, sequence2 = alignment_list
+    matches = sum(1 for a, b in zip(sequence1, sequence2) if a == b)
+    return (matches / len(sequence1)) * 100
 
 def abundance_greedy_clustering(amplicon_file: Path, minseqlen: int, mincount: int, chunk_size: int, kmer_size: int) -> List:
     """Compute an abundance greedy clustering regarding sequence count and identity.
@@ -142,7 +148,19 @@ def abundance_greedy_clustering(amplicon_file: Path, minseqlen: int, mincount: i
     :param kmer_size: (int) A fournir mais non utilise cette annee
     :return: (list) A list of all the [OTU (str), count (int)] .
     """
-    pass
+    otus = []
+    for sequence, count in dereplication_fulllength(amplicon_file, minseqlen, mincount):
+        is_otu = True
+        for otu, _ in otus:
+            alignment = nw.global_align(sequence, otu, gap_open=-1, gap_extend=-1, 
+                                        matrix=str(Path(__file__).parent / "MATCH"))
+            identity = get_identity(alignment)
+            if identity >= 97:
+                is_otu = False
+                break
+        if is_otu:
+            otus.append([sequence, count])
+    return otus
 
 
 def write_OTU(OTU_list: List, output_file: Path) -> None:
@@ -151,7 +169,10 @@ def write_OTU(OTU_list: List, output_file: Path) -> None:
     :param OTU_list: (list) A list of OTU sequences
     :param output_file: (Path) Path to the output file
     """
-    pass
+    with open(output_file, "w") as f:
+        for i, (sequence, count) in enumerate(OTU_list, 1):
+            f.write(f">OTU_{i} occurrence:{count}\n")
+            f.write(textwrap.fill(sequence, width=80) + "\n")
 
 
 #==============================================================
